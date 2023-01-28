@@ -187,4 +187,4 @@ dependencies:
     - advertorch==0.2.3
     - einops==0.4.1
     - thop==0.0.31-2005241907
-prefix: /home/kaz321/anaconda3/envs/fedepth
+prefix: /home/username/anaconda3/envs/fedepth
