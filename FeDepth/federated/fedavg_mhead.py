@@ -191,7 +191,7 @@ class _Federation:
 
     def upload(self, running_model, client_idx):
         """Upload client model."""
-        self.model_accum.add(client_idx, running_model, self.client_weights[client_idx])
+        self.model_accum.add(client_idx, running_model, self.client_weights[client_idx], self.client_num)
         # self.model_accum.add(client_idx, running_model, self.client_weights, self.args.pd_nuser, self.args.model)
 
     def aggregate(self):
