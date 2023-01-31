@@ -9,7 +9,6 @@ from tqdm import tqdm
 from federated.core import AdversaryCreator
 from utils.utils import AverageMeter
 from nets.dual_bn import set_bn_mode
-from nets.HeteFL.revnet import RevNet
 
 def if_use_dbn(model):
     if isinstance(model, DDP):
@@ -52,10 +51,6 @@ def train(model, data_loader, optimizer, loss_fun, device, adversary=None, adv_l
             correct += pred.eq(target.view(-1)).sum().item()
 
             loss.backward()
-            # free the memory used to store activations -- RevNet 
-            if type(model) is RevNet:
-                model.free()
-
             optimizer.step()
     else:
         # Use adversary to perturb data.

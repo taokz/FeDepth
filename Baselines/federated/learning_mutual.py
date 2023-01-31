@@ -11,7 +11,6 @@ from tqdm import tqdm
 from federated.core import AdversaryCreator
 from utils.utils import AverageMeter
 from nets.dual_bn import set_bn_mode
-from nets.HeteFL.revnet import RevNet
 
 import copy
 import os
@@ -84,10 +83,6 @@ def train(model, data_loader, optimizer, loss_fun, device, adversary=None, adv_l
             correct += pred.eq(target.view(-1)).sum().item()
 
             loss.backward()
-            # free the memory used to store activations -- RevNet 
-            if type(model) is RevNet:
-                model.free()
-
             optimizer.step()
     else:
         try:
@@ -149,11 +144,6 @@ def train(model, data_loader, optimizer, loss_fun, device, adversary=None, adv_l
                 net0_loss.backward()
                 aux_opt_1.zero_grad()
                 net1_loss.backward()
-
-                # free the memory used to store activations -- RevNet 
-                if type(model) is RevNet:
-                    model.free()
-                    aux_model_1.free()
 
                 optimizer.step()
                 aux_opt_1.step()

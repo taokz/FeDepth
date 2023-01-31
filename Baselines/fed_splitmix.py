@@ -23,7 +23,7 @@ from federated.core import SplitFederation as Federation, AdversaryCreator
 def render_run_name(args, exp_folder):
     """Return a unique run_name from given args."""
     if args.model == 'default':
-        args.model = {'Digits': 'ens_digit', 'Cifar10': 'ens_preresnet20', 'DomainNet': 'ens_alex', 'Cifar100': 'ens_preresnet32'}[args.data]
+        args.model = {'Cifar10': 'ens_preresnet20', 'Cifar100': 'ens_preresnet20'}[args.data]
     run_name = f'{args.model}'
     run_name += Federation.render_run_name(args)
     # log non-default args
@@ -53,30 +53,8 @@ def render_run_name(args, exp_folder):
 
 def get_model_fh(data, model, atom_slim_ratio):
     # FIXME Only use EnsembleNet or Slimmable model.
-    if data == 'Digits':
-        if model in ['digit']:
-            from nets.slimmable_models import SlimmableDigitModel
-            # TODO remove. Function the same as ens_digit
-            ModelClass = SlimmableDigitModel
-        elif model == 'ens_digit':
-            from nets.models import DigitModel
-            ModelClass = lambda **kwargs: EnsembleNet(
-                base_net=DigitModel, atom_slim_ratio=atom_slim_ratio,
-                rescale_init=args.rescale_init, rescale_layer=args.rescale_layer, **kwargs)
-        else:
-            raise ValueError(f"Invalid model: {model}")
-    elif data in ['DomainNet']:
-        if model in ['alex']:
-            from nets.slimmable_models import SlimmableAlexNet
-            ModelClass = SlimmableAlexNet
-        elif model == 'ens_alex':
-            from nets.models import AlexNet
-            ModelClass = lambda **kwargs: EnsembleNet(
-                base_net=AlexNet, atom_slim_ratio=atom_slim_ratio,
-                rescale_init=args.rescale_init, rescale_layer=args.rescale_layer, **kwargs)
-        else:
-            raise ValueError(f"Invalid model: {model}")
-    elif (data == 'Cifar10') or data == ('Cifar100'):
+
+    if (data == 'Cifar10') or data == ('Cifar100') or (data == 'EMNIST'):
         if model in ['preresnet20']:  # From heteroFL
             from nets.HeteFL.slimmable_preresne import resnet20
             ModelClass = resnet20
@@ -89,26 +67,8 @@ def get_model_fh(data, model, atom_slim_ratio):
             ModelClass = lambda **kwargs: EnsembleNet(
                 base_net=resnet20, atom_slim_ratio=atom_slim_ratio,
                 rescale_init=args.rescale_init, rescale_layer=args.rescale_layer, **kwargs)
-        elif model in ['ens_preresnet32']:
-            if args.no_track_stat:
-                from nets.HeteFL.preresne import resnet32
-            else:
-                from nets.HeteFL.preresnet import resnet32
-            ModelClass = lambda **kwargs: EnsembleNet(
-                base_net=resnet32, atom_slim_ratio=atom_slim_ratio,
-                rescale_init=args.rescale_init, rescale_layer=args.rescale_layer, **kwargs)
         else:
             raise ValueError(f"Invalid model: {model}")
-        # if model in ['ens_preresnet38']:
-        #     if args.no_track_stat:
-        #         from nets.HeteFL.preresne import resnet38
-        #     else:
-        #         from nets.HeteFL.preresnet import resnet38
-        #     ModelClass = lambda **kwargs: EnsembleNet(
-        #         base_net=resnet38, atom_slim_ratio=atom_slim_ratio,
-        #         rescale_init=args.rescale_init, rescale_layer=args.rescale_layer, **kwargs)
-        # else:
-        #     raise ValueError(f"Invalid model: {model}")
     else:
         raise ValueError(f"Unknown dataset: {data}")
     return ModelClass

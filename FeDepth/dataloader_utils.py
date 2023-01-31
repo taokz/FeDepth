@@ -4,8 +4,22 @@ from torch.utils.data import Dataset, DataLoader
 import torchvision.transforms as transforms
 from collections import defaultdict
 import tqdm
-from torchvision.datasets import CIFAR10, CIFAR100
+from torchvision.datasets import CIFAR10, CIFAR100, EMNIST
 from utils import shuffle_sampler
+
+# TODO: save the splited dataset for re-use.
+
+class EmnistDataset(EMNIST):
+    all_domains = ['emnist']
+    resorted_domains = {
+        0: ['emnist'],
+    }
+    num_classes = 62
+
+    def __init__(self, domain='emnist', train=True, transform=None, download=True, split='byclass'):
+        assert domain in self.all_domains, f"Invalid domain: {domain}"
+        data_path = os.path.join('./data', domain)
+        super().__init__(data_path, train=train, transform=transform, download=download, split=split)
 
 class CifarDataset(CIFAR10):
     all_domains = ['cifar10']

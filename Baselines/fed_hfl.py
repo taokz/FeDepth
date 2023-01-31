@@ -20,7 +20,7 @@ from federated.core import SHeteFederation as Federation
 def render_run_name(args, exp_folder):
     """Return a unique run_name from given args."""
     if args.model == 'default':
-        args.model = {'Digits': 'digit', 'Cifar10': 'preresnet20', 'DomainNet': 'alex'}[args.data]
+        args.model = {'Cifar10': 'preresnet20'}[args.data]
     run_name = f'{args.model}'
     run_name += Federation.render_run_name(args)
     # log non-default args
@@ -45,26 +45,10 @@ def render_run_name(args, exp_folder):
 
 
 def get_model_fh(data, model):
-    if data == 'Digits':
-        if model in ['digit']:
-            from nets.slimmable_models import SlimmableDigitModel
-            # TODO remove. Function the same as ens_digit
-            ModelClass = SlimmableDigitModel
-        else:
-            raise ValueError(f"Invalid model: {model}")
-    elif data in ['DomainNet']:
-        if model in ['alex']:
-            from nets.slimmable_models import SlimmableAlexNet
-            ModelClass = SlimmableAlexNet
-        else:
-            raise ValueError(f"Invalid model: {model}")
-    elif (data == 'Cifar10') or (data == 'Cifar100'):
+    if (data == 'Cifar10') or (data == 'Cifar100') or (data == 'EMNIST'):
         if model in ['preresnet20']:  # From heteroFL
             from nets.HeteFL.slimmable_preresne import resnet20
             ModelClass = resnet20
-        elif model in ['preresnet32']:
-            from nets.HeteFL.slimmable_preresne import resnet32
-            ModelClass = resnet32
 
         elif model in ['vit_tiny_timm']:
             # from nets.HeteFL import timm
@@ -92,15 +76,6 @@ def get_model_fh(data, model):
 
         else:
             raise ValueError(f"Invalid model: {model}")
-    # elif data == 'Cifar100':
-    #     if model in ['preresnet38']:
-    #         from nets.HeteFL.slimmable_preresne import resnet38
-    #         ModelClass = resnet38
-    #     elif model in ['preresnet32']:
-    #         from nets.HeteFL.slimmable_preresne import resnet32
-    #         ModelClass = resnet32
-    #     else:
-    #         raise ValueError(f"Invalid model: {model}")
     else:
         raise ValueError(f"Unknown dataset: {data}")
     return ModelClass
@@ -116,7 +91,7 @@ if __name__ == '__main__':
 
     # basic problem setting
     parser.add_argument('--seed', type=int, default=1, help='random seed')
-    parser.add_argument('--data', type=str, default='Digits', help='data name')
+    parser.add_argument('--data', type=str, default='cifar10', help='data name')
     parser.add_argument('--model', type=str.lower, default='default', help='model name')
     parser.add_argument('--no_track_stat', action='store_true', help='disable BN tracking')
     parser.add_argument('--test_refresh_bn', action='store_true', help='refresh BN before test')
@@ -182,7 +157,7 @@ if __name__ == '__main__':
             num_classes=fed.num_classes, slimmabe_ratios=fed.train_slim_ratios,
         ).to(device)
     else:
-        # TODO: add required slimmable variabels
+        # TODO: add required slimmable variabels, can not be run to date.
         from timm.models.utils.slimmable_ops import SlimmableLinear
         if args.data == 'Cifar10':
             # ModelClass.width_scale=args.width_scale

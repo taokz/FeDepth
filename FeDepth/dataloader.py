@@ -3,7 +3,36 @@ import torch
 import torchvision.transforms as transforms#, utils, datasets
 from torch.utils.data import Dataset, DataLoader, Subset
 import torchvision
-from dataloader_utils import Partitioner, ClassWisePartitioner, CifarDataset, extract_labels, CifarDataset100
+from dataloader_utils import Partitioner, ClassWisePartitioner, CifarDataset, extract_labels, CifarDataset100, EmnistDataset
+
+def emnist_transforms(type, enable_resize=False):
+    # enable_resize is for vit
+    if type == 'train':
+        if enable_resize == False:
+            return transforms.Compose([transforms.Resize([32,32]),
+                    transforms.Grayscale(num_output_channels=3),
+                    transforms.RandomHorizontalFlip(),
+                    transforms.ToTensor(),
+                    transforms.Normalize((0.1307,), (0.3081,))
+                ])
+        elif enable_resize == True:
+            return transforms.Compose([transforms.Resize([224,224]),
+                    transforms.Grayscale(num_output_channels=3),
+                    transforms.RandomHorizontalFlip(),
+                    transforms.ToTensor(),
+                    transforms.Normalize((0.1307,), (0.3081,))])
+    else: # 'test'
+        if enable_resize == False:
+            return transforms.Compose([transforms.Resize([32,32]),
+                transforms.Grayscale(num_output_channels=3),
+                transforms.ToTensor(),
+                transforms.Normalize((0.1307,), (0.3081,))
+                ])
+        elif enable_resize == True:
+            return transforms.Compose([transforms.Resize([224,224]),
+                    transforms.Grayscale(num_output_channels=3),
+                    transforms.ToTensor(),
+                    transforms.Normalize((0.1307,), (0.3081,))])
 
 
 def compose_transforms(type, enable_resize=False):
@@ -30,6 +59,11 @@ def compose_transforms(type, enable_resize=False):
             return transforms.Compose([transforms.Resize([224,224]),
                     transforms.ToTensor(),
                     transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))])
+
+def get_central_emnist(name: str, domains: list, enable_resize=False):
+    train_sets = [EmnistDataset(domain, train=True, split="byclass", transform=emnist_transforms('train', enable_resize=enable_resize)) for domain in domains]
+    test_sets = [EmnistDataset(domain, train=False, split="byclass", transform=emnist_transforms('test', enable_resize=enable_resize)) for domain in domains]
+    return train_sets, test_sets
 
 def get_central_data(name: str, domains: list, enable_resize=False):
     train_sets = [CifarDataset(domain, train=True, transform=compose_transforms('train', enable_resize=enable_resize)) for domain in domains]
@@ -396,6 +430,24 @@ def make_fed_data(train_sets, test_sets, batch_size, domains, shuffle_eval=False
 
     return train_loaders, val_loaders, test_loaders, clients        
 
+def prepare_emnist_data(args, domains=['emnist'], shuffle_eval=False, n_class_per_user=-1,
+                       n_user_per_domain=1, partition_seed=42, partition_mode='uni', val_ratio=0.2,
+                       eq_domain_train_size=True, subset_with_logits=False,
+                       consistent_test_class=False, partition_method='iid', alpha=0.3, enable_resize=False
+                       ):
+    train_sets, test_sets = get_central_emnist('emnist', domains, enable_resize=enable_resize)
+
+    train_loaders, val_loaders, test_loaders, clients = make_fed_data(
+        train_sets, test_sets, args.batch, domains, shuffle_eval=shuffle_eval,
+        partition_seed=partition_seed, n_user_per_domain=n_user_per_domain,
+        partition_mode=partition_mode,
+        val_ratio=val_ratio, eq_domain_train_size=eq_domain_train_size, percent=args.percent,
+        min_n_sample_per_share=3, subset_with_logits=subset_with_logits,
+        n_class_per_user=n_class_per_user,
+        test_batch_size=args.test_batch if hasattr(args, 'test_batch') else args.batch,
+        consistent_test_class=consistent_test_class, partition_method=partition_method, alpha=alpha,
+    )
+    return train_loaders, val_loaders, test_loaders, clients
 
 def prepare_cifar_data(args, domains=['cifar10'], shuffle_eval=False, n_class_per_user=-1,
                        n_user_per_domain=1, partition_seed=42, partition_mode='uni', val_ratio=0.2,

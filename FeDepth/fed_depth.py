@@ -24,7 +24,7 @@ def init_aux_weights(m):
     return m
 
 def get_model_fh(data, model, sufficient=1):
-    if (data == 'Cifar10') or (data == 'Cifar100'):
+    if (data == 'Cifar10') or (data == 'Cifar100') or (data == 'EMNIST'):
         if sufficient > 0:
             if model in ['preresnet20']:  # From heteroFL
                 from models.preresnet_res_light import resnet20
@@ -204,6 +204,9 @@ if __name__ == '__main__':
         elif args.data == 'Cifar100':
             ModelClass.head = nn.Linear(ModelClass.head.weight.shape[1], 100)
             ModelClass.num_classes = 100
+        elif args.data == 'EMNIST':
+            ModelClass.head = nn.Linear(ModelClass.head.weight.shape[1], 62)
+            ModelClass.num_classes = 62
         running_model = ModelClass.to(device)
 
     # adversary
@@ -268,44 +271,6 @@ if __name__ == '__main__':
             
             wandb.summary[f'{fed.clients[test_idx]} test acc'] = test_acc
             test_acc_mt.append(test_acc)
-
-        # Profile model FLOPs, sizes (#param)
-        # from models.utils.profile_func import profile_model
-
-        # for test_idx in range(fed.args.pd_nuser):
-        #     if test_idx < fed.args.pd_nuser/4*1:
-        #         running_model.comp_flag = 1
-        #         #running_model.alter_flag = 3
-        #         flops, params = profile_model(running_model, device=device)
-        #         wandb.summary['GFLOPs'] = flops / 1e9
-        #         wandb.summary['model size (MB)'] = params / 1e6
-        #         print(' {:<11s}| GFLOPS: {:.4f} | model size: {:.4f}MB'.format(fed.clients[test_idx], flops / 1e9, params / 1e6))
-        #     elif test_idx < fed.args.pd_nuser/4*2:
-        #         running_model.comp_flag = 2
-        #         #running_model.alter_flag = 4
-        #         flops, params = profile_model(running_model, device=device)
-        #         wandb.summary['GFLOPs'] = flops / 1e9
-        #         wandb.summary['model size (MB)'] = params / 1e6
-        #         print(' {:<11s}| GFLOPS: {:.4f} | model size: {:.4f}MB'.format(fed.clients[test_idx], flops / 1e9, params / 1e6))
-        #     elif test_idx < fed.args.pd_nuser/4*3:
-        #         running_model.comp_flag = 3
-        #         #running_model.alter_flag = 2
-        #         flops, params = profile_model(running_model, device=device)
-        #         wandb.summary['GFLOPs'] = flops / 1e9
-        #         wandb.summary['model size (MB)'] = params / 1e6
-        #         print(' {:<11s}| GFLOPS: {:.4f} | model size: {:.4f}MB'.format(fed.clients[test_idx], flops / 1e9, params / 1e6))
-        #     else:
-        #         running_model.comp_flag = 4
-        #         #running_model.alter_flag = None
-        #         flops, params = profile_model(running_model, device=device)
-        #         wandb.summary['GFLOPs'] = flops / 1e9
-        #         wandb.summary['model size (MB)'] = params / 1e6
-        #         print(' {:<11s}| GFLOPS: {:.4f} | model size: {:.4f}MB'.format(fed.clients[test_idx], flops / 1e9, params / 1e6))
-
-        #flops, params = profile_model(running_model, device=device)
-        #wandb.summary['GFLOPs'] = flops / 1e9
-        #wandb.summary['model size (MB)'] = params / 1e6
-        #print('GFLOPS: %.4f, model size: %.4fMB' % (flops / 1e9, params / 1e6))
 
         print(f"\n Average Test Acc: {test_acc_mt.avg}")
         wandb.summary[f'avg test acc'] = test_acc_mt.avg

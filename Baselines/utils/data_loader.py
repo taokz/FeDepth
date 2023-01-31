@@ -4,9 +4,8 @@ import torchvision.transforms as transforms
 from torch.utils.data import Subset
 from torch.utils.data import DataLoader
 
-from utils.data_utils import DomainNetDataset, DigitsDataset, Partitioner, \
-    CifarDataset, CifarDataset100, ClassWisePartitioner, extract_labels
-
+from utils.data_utils import Partitioner, \
+    CifarDataset, CifarDataset100, ClassWisePartitioner, extract_labels, EmnistDataset
 
 def compose_transforms(trns, image_norm):
     if image_norm == '0.5':
@@ -19,6 +18,8 @@ def compose_transforms(trns, image_norm):
                                                                std=[0.229, 0.224, 0.225])])
     elif image_norm == 'none':
         return transforms.Compose(trns)
+    elif image_norm == 'emnist':
+        return transforms.Compose(trns + [transforms.Normalize(transforms.Normalize((0.1307,), (0.3081,)))])
     else:
         raise ValueError(f"Invalid image_norm: {image_norm}")
 
@@ -32,68 +33,8 @@ def get_central_data(name: str, domains: list, percent=1., image_norm='none',
     if percent != 1. and name.lower() != 'digits':
         raise RuntimeError(f"percent={percent} should not be used in get_central_data."
                            f" Pass it to make_fed_data instead.")
-    if name.lower() == 'digits':
-        if image_norm == 'default':
-            image_norm = '0.5'
-        for domain in domains:
-            if domain not in DigitsDataset.all_domains:
-                raise ValueError(f"Invalid domain: {domain}")
-        # Prepare data
-        trns = {
-            'MNIST': [
-                transforms.Grayscale(num_output_channels=3),
-                transforms.ToTensor(),
-            ],
-            'SVHN': [
-                transforms.Resize([28,28]),
-                transforms.ToTensor(),
-            ],
-            'USPS': [
-                transforms.Resize([28,28]),
-                transforms.Grayscale(num_output_channels=3),
-                transforms.ToTensor(),
-            ],
-            'SynthDigits': [
-                transforms.Resize([28,28]),
-                transforms.ToTensor(),
-            ],
-            'MNIST_M': [
-                transforms.ToTensor(),
-            ],
-        }
-
-        train_sets = [DigitsDataset(domain,
-                                    percent=percent, train=True,
-                                    transform=compose_transforms(trns[domain], image_norm))
-                      for domain in domains]
-        test_sets = [DigitsDataset(domain,
-                                   train=False,
-                                   transform=compose_transforms(trns[domain], image_norm))
-                     for domain in domains]
-    elif name.lower() in ('domainnet', 'domainnetf'):
-        transform_train = transforms.Compose([
-            transforms.Resize([256, 256]),
-            transforms.RandomHorizontalFlip(),
-            transforms.RandomRotation((-30, 30)),
-            transforms.ToTensor(),
-        ])
-
-        transform_test = transforms.Compose([
-            transforms.Resize([256, 256]),
-            transforms.ToTensor(),
-        ])
-
-        train_sets = [
-            DomainNetDataset(domain, transform=transform_train,
-                             full_set=name.lower()=='domainnetf')
-            for domain in domains
-        ]
-        test_sets = [
-            DomainNetDataset(domain, transform=transform_test, train=False,
-                             full_set=name.lower()=='domainnetf')
-            for domain in domains
-        ]
-    elif name.lower() == 'cifar10':
+    
+    if name.lower() == 'cifar10':
         if image_norm == 'default':
             image_norm = 'torch'
         for domain in domains:
@@ -124,10 +65,6 @@ def get_central_data(name: str, domains: list, percent=1., image_norm='none',
         for domain in domains:
             if domain not in CifarDataset100.all_domains:
                 raise ValueError(f"Invalid domain: {domain}")
-        # trn_train = [transforms.RandomCrop(32, padding=4),
-        #              transforms.RandomHorizontalFlip(),
-        #              transforms.ToTensor()]
-        # trn_test = [transforms.ToTensor()]
         if enable_resize == False:
             trn_train = [transforms.RandomCrop(32, padding=4),
                         transforms.RandomHorizontalFlip(),
@@ -145,6 +82,39 @@ def get_central_data(name: str, domains: list, percent=1., image_norm='none',
                                    transform=compose_transforms(trn_train, image_norm))
                       for domain in domains]
         test_sets = [CifarDataset100(domain, train=False,
+                                  transform=compose_transforms(trn_test, image_norm))
+                     for domain in domains]
+    elif name.lower() == 'emnist':
+        if image_norm == 'default':
+            image_norm = 'emnist'
+        for domain in domains:
+            if domain not in EmnistDataset.all_domains:
+                raise ValueError(f"Invalid domain: {domain}")
+        if enable_resize == False:
+            trn_train = [transforms.Resize([32,32]),
+                    transforms.Grayscale(num_output_channels=3),
+                    transforms.RandomHorizontalFlip(),
+                    transforms.ToTensor()
+                ]
+            trn_test = [transforms.Resize([32,32]),
+                transforms.Grayscale(num_output_channels=3),
+                transforms.ToTensor()
+                ]
+        else:
+            trn_train = [transforms.Resize([224,224]),
+                    transforms.Grayscale(num_output_channels=3),
+                    transforms.RandomHorizontalFlip(),
+                    transforms.ToTensor()
+                ]
+            trn_test = [transforms.Resize([32,32]),
+                transforms.Grayscale(num_output_channels=3),
+                transforms.ToTensor()
+                ]
+
+        train_sets = [EmnistDataset(domain, train=True,
+                                   transform=compose_transforms(trn_train, image_norm))
+                      for domain in domains]
+        test_sets = [EmnistDataset(domain, train=False,
                                   transform=compose_transforms(trn_test, image_norm))
                      for domain in domains]
     else:
@@ -523,54 +493,6 @@ def make_fed_data(train_sets, test_sets, batch_size, domains, shuffle_eval=False
 
     return train_loaders, val_loaders, test_loaders, clients
 
-def prepare_domainnet_data(args, domains=['clipart', 'quickdraw'], shuffle_eval=False,
-                           n_class_per_user=-1, n_user_per_domain=1,
-                           partition_seed=42, partition_mode='uni',
-                           val_ratio=0., eq_domain_train_size=True,
-                           subset_with_logits=False, consistent_test_class=False,
-                           ):
-    assert args.data.lower() in ['domainnet', 'domainnetf']
-    train_sets, test_sets = get_central_data(args.data.lower(), domains)
-
-    train_loaders, val_loaders, test_loaders, clients = make_fed_data(
-        train_sets, test_sets, args.batch, domains, shuffle_eval=shuffle_eval,
-        partition_seed=partition_seed, n_user_per_domain=n_user_per_domain,
-        partition_mode=partition_mode,
-        val_ratio=val_ratio, eq_domain_train_size=eq_domain_train_size, percent=args.percent,
-        min_n_sample_per_share=16, subset_with_logits=subset_with_logits,
-        n_class_per_user=n_class_per_user,
-        test_batch_size=args.test_batch if hasattr(args, 'test_batch') else args.batch,
-        num_workers=8 if args.data.lower() == 'domainnetf' else 0,
-        pin_memory=False if args.data.lower() == 'domainnetf' else True,
-        consistent_test_class=consistent_test_class,
-    )
-    return train_loaders, val_loaders, test_loaders, clients
-
-
-def prepare_digits_data(args, domains=['MNIST', 'SVHN'], shuffle_eval=False, n_class_per_user=-1,
-                        n_user_per_domain=1, partition_seed=42, partition_mode='uni', val_ratio=0.2,
-                        eq_domain_train_size=True, subset_with_logits=False,
-                        consistent_test_class=False,
-                        ):
-    do_adv_train = hasattr(args, 'noise') and (args.noise == 'none' or args.noise_ratio == 0
-                                               or args.n_noise_domain == 0)
-    # NOTE we use the image_norm=0.5 for reproducing clean training results.
-    #   but for adv training, we do not use image_norm
-    train_sets, test_sets = get_central_data(
-        args.data, domains, percent=args.percent, image_norm='0.5' if do_adv_train else 'none',
-        disable_image_norm_error=True)
-    train_loaders, val_loaders, test_loaders, clients = make_fed_data(
-        train_sets, test_sets, args.batch, domains, shuffle_eval=shuffle_eval,
-        partition_seed=partition_seed, n_user_per_domain=n_user_per_domain,
-        partition_mode=partition_mode,
-        val_ratio=val_ratio, eq_domain_train_size=eq_domain_train_size,
-        min_n_sample_per_share=16, n_class_per_user=n_class_per_user,
-        subset_with_logits=subset_with_logits,
-        test_batch_size=args.test_batch if hasattr(args, 'test_batch') else args.batch,
-        consistent_test_class=consistent_test_class,
-    )
-    return train_loaders, val_loaders, test_loaders, clients
-
 
 def prepare_cifar_data(args, domains=['cifar10'], shuffle_eval=False, n_class_per_user=-1,
                        n_user_per_domain=1, partition_seed=42, partition_mode='uni', val_ratio=0.2,
@@ -611,6 +533,24 @@ def prepare_cifar100_data(args, domains=['cifar100'], shuffle_eval=False, n_clas
     )
     return train_loaders, val_loaders, test_loaders, clients
 
+def prepare_emnist_data(args, domains=['emnist'], shuffle_eval=False, n_class_per_user=-1,
+                       n_user_per_domain=1, partition_seed=42, partition_mode='uni', val_ratio=0.2,
+                       eq_domain_train_size=True, subset_with_logits=False,
+                       consistent_test_class=False, partition_method='iid', alpha=0.3, enable_resize=False
+                       ):
+    train_sets, test_sets = get_central_data('emnist', domains, enable_resize=enable_resize)
+
+    train_loaders, val_loaders, test_loaders, clients = make_fed_data(
+        train_sets, test_sets, args.batch, domains, shuffle_eval=shuffle_eval,
+        partition_seed=partition_seed, n_user_per_domain=n_user_per_domain,
+        partition_mode=partition_mode,
+        val_ratio=val_ratio, eq_domain_train_size=eq_domain_train_size, percent=args.percent,
+        min_n_sample_per_share=3, subset_with_logits=subset_with_logits,
+        n_class_per_user=n_class_per_user,
+        test_batch_size=args.test_batch if hasattr(args, 'test_batch') else args.batch,
+        consistent_test_class=consistent_test_class, partition_method=partition_method, alpha=alpha,
+    )
+    return train_loaders, val_loaders, test_loaders, clients
 
 class SubsetWithLogits(Subset):
     r"""
@@ -633,49 +573,3 @@ class SubsetWithLogits(Subset):
 
     def update_logits(self, idx, logit):
         self.logits[idx] = logit
-
-
-if __name__ == '__main__':
-    data = 'cifar10'
-    if data == 'digits':
-        train_loaders, val_loaders, test_loaders, clients = prepare_digits_data(
-            type('MockClass', (object,), {'percent': 1.0, 'batch': 32}), domains=['MNIST'],
-            n_user_per_domain=5,
-            partition_seed=1,
-            partition_mode='uni',
-            val_ratio=0.2,
-        )
-        for batch in train_loaders[0]:
-            data, target = batch
-            print(target)
-            break
-    elif data == 'cifar10':
-        train_loaders, val_loaders, test_loaders, clients = prepare_cifar_data(
-            type('MockClass', (object,), {'batch': 32, 'percent': 0.1}), domains=['cifar10'],
-            n_user_per_domain=5,
-            partition_seed=1,
-            partition_mode='uni',
-            val_ratio=0.2,
-            subset_with_logits=True
-        )
-        for batch in train_loaders[0]:
-            smp_idxs, data, target, t_logits = batch
-            print(smp_idxs)
-            break
-
-        temp_loader = DataLoader(train_loaders[0].dataset, batch_size=32, shuffle=False)
-        all_logits = []
-        for batch in temp_loader:
-            # FIXME need to modify SubsetWithLogits to return the index
-            smp_idxs, data, target, t_logits = batch
-            all_logits.append(torch.rand((len(data), 10)))
-            # for i in smp_idxs
-            # print(smp_idxs)
-        all_logits = torch.cat(all_logits, dim=0)
-        assert isinstance(train_loaders[0].dataset, SubsetWithLogits)
-        train_loaders[0].dataset.logits = all_logits
-
-        for batch in train_loaders[0]:
-            smp_idxs, data, target, t_logits = batch
-            print("t_logits shape", t_logits.shape)
-            break

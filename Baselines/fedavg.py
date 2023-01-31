@@ -46,19 +46,7 @@ def render_run_name(args, exp_folder):
 
 
 def get_model_fh(data, model, pretrained=False):
-    if data == 'Digits':
-        if model in ['digit']:
-            from nets.models import DigitModel
-            ModelClass = DigitModel
-        else:
-            raise ValueError(f"Invalid model: {model}")
-    elif data in ['DomainNet']:
-        if model in ['alex']:
-            from nets.models import AlexNet
-            ModelClass = AlexNet
-        else:
-            raise ValueError(f"Invalid model: {model}")
-    elif (data == 'Cifar10') or (data == 'Cifar100'):
+    if (data == 'Cifar10') or (data == 'Cifar100') or (data == 'EMNIST'):
         if model in ['preresnet20']:  # From heteroFL
             from nets.HeteFL.preresne import resnet20
             ModelClass = resnet20
@@ -185,6 +173,11 @@ if __name__ == '__main__':
             ModelClass.width_scale=args.width_scale
             ModelClass.head = nn.Linear(ModelClass.head.weight.shape[1], 100)
             ModelClass.num_classes = 100
+        elif args.data == 'EMNIST':
+            # attempt 2
+            ModelClass.width_scale=args.width_scale
+            ModelClass.head = nn.Linear(ModelClass.head.weight.shape[1], 62)
+            ModelClass.num_classes = 62
         running_model = ModelClass.to(device)
 
     # adversary]
@@ -255,11 +248,11 @@ if __name__ == '__main__':
 
         # Profile model FLOPs, sizes (#param)
         from nets.profile_func import profile_model
-        if 'revnet' not in args.model:
-            flops, params = profile_model(running_model, device=device)
-            wandb.summary['GFLOPs'] = flops / 1e9
-            wandb.summary['model size (MB)'] = params / 1e6
-            print('GFLOPS: %.4f, model size: %.4fMB' % (flops / 1e9, params / 1e6))
+
+        flops, params = profile_model(running_model, device=device)
+        wandb.summary['GFLOPs'] = flops / 1e9
+        wandb.summary['model size (MB)'] = params / 1e6
+        print('GFLOPS: %.4f, model size: %.4fMB' % (flops / 1e9, params / 1e6))
 
         print(f"\n Average Test Acc: {test_acc_mt.avg}")
         wandb.summary[f'avg test acc'] = test_acc_mt.avg

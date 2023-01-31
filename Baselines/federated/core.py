@@ -69,18 +69,8 @@ class _Federation:
         self.args = args
 
         # Prepare Data
-        num_classes = 10
-        if data == 'Digits':
-            from utils.data_utils import DigitsDataset
-            from utils.data_loader import prepare_digits_data
-            prepare_data = prepare_digits_data
-            DataClass = DigitsDataset
-        elif data == 'DomainNet':
-            from utils.data_utils import DomainNetDataset
-            from utils.data_loader import prepare_domainnet_data
-            prepare_data = prepare_domainnet_data
-            DataClass = DomainNetDataset
-        elif data == 'Cifar10':
+        if data == 'Cifar10':
+            num_classes = 10
             from utils.data_utils import CifarDataset
             from utils.data_loader import prepare_cifar_data
             prepare_data = prepare_cifar_data
@@ -91,6 +81,12 @@ class _Federation:
             from utils.data_loader import prepare_cifar100_data
             prepare_data = prepare_cifar100_data
             DataClass = CifarDataset100
+        elif data == 'EMNIST':
+            num_classes = 62
+            from utils.data_utils import EmnistDataset
+            from utils.data_loader import prepare_emnist_data
+            prepare_data = prepare_emnist_data
+            DataClass = EmnistDataset
         else:
             raise ValueError(f"Unknown dataset: {data}")
         all_domains = DataClass.resorted_domains[args.domain_order]

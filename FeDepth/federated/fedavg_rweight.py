@@ -126,6 +126,38 @@ class _Federation:
             self.num_classes = num_classes
             self.all_domains = all_domains
 
+        elif data == 'EMNIST':
+            num_classes = 62
+            from dataloader import prepare_emnist_data
+            from dataloader_utils import EmnistDataset
+            prepare_data = prepare_emnist_data
+            DataClass = EmnistDataset
+
+            all_domains = EmnistDataset.resorted_domains[args.domain_order]
+
+            train_loaders, val_loaders, test_loaders, clients = prepare_data(
+                args, domains=all_domains,
+                n_user_per_domain=args.pd_nuser,
+                n_class_per_user=args.pu_nclass,
+                partition_seed=args.seed + 1,
+                partition_mode=args.partition_mode,
+                val_ratio=args.val_ratio,
+                eq_domain_train_size=args.partition_mode == 'uni',
+                consistent_test_class=args.con_test_cls,
+                partition_method=args.partition_method,
+                alpha=args.alpha,
+                enable_resize=args.enable_resize,
+            )
+            clients = [c + ' ' + ('noised' if hasattr(args, 'adv_lmbd') and args.adv_lmbd > 0.
+                                  else 'clean') for c in clients]
+            
+            self.train_loaders = train_loaders
+            self.val_loaders = val_loaders
+            self.test_loaders = test_loaders
+            self.clients = clients
+            self.num_classes = num_classes
+            self.all_domains = all_domains
+
         # Setup fed
         self.client_num = len(self.clients)
         client_weights = [len(tl.dataset) for tl in train_loaders]
